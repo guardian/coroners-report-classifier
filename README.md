@@ -7,5 +7,14 @@ First, get the PFD_docs from [Google Drive](https://drive.google.com/drive/folde
 Then,
 ```
 deno run --check -A delayed-ambulance.ts 2>err 1>out.json
+```
+
+To see the YES count by year:
+```
 cat out.json | jq 'select(.yesNo == "YES").year' | sort | uniq -c
+```
+
+To create a CSV of all results:
+```
+cat out.json | jq -r '[.originalNameRoot, .yesNo] | @csv'
 ```
