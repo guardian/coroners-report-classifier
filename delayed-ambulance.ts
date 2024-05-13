@@ -76,6 +76,34 @@ function openAIRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     }
   });
 }
+ 
+// Delay due to not space at hospital
+// Delay, other (official protocol)
+// Delay, category
+// Call handling
+// Delay, category, (private ambulance no equipped)
+// Not space in hospital
+// Intra hospital handover slow
+// Delay, Category
+// Lack of resources
+// Communication
+// Call handling, category
+// Wrong procedure/medication
+// Communication, category
+// Lack of training/knowledge
+// Other (official protocol)
+// Category
+// Lack of training/knowledge, Wrong procedure/medication
+// Other (Third party call)
+// Delay, communication, category
+// Other (official protocol), communication
+// Category, shortages staff
+// Delay due to not space at hospital, wrong procedure
+// Delay, wrong procedure/medication
+// Delay, Communication
+// Other (dispute with parents)
+// Category, Lack of training/knowledge
+// Communication, lack of training/knowledge
 
 type File = { year: string, name: string, originalNameRoot: string, originalPdfName: string, contents: string };
 // read in every .txt file in subdirectories of data/
@@ -129,12 +157,12 @@ for (const file of files) {
         You must only answer YES or NO.
     `
     };
-    const prompt = `This is a coronor's report about a person who died in ${file.year}:\n\n"""\n${file.contents.trim()}\n"""\n\nDoes the report mention an ambulance delay? Please answer simply "YES" or "NO", in all caps, without punctuation.`;
+    const prompt = `This is a coronor's report about a person who died in ${file.year}:\n\n"""\n${file.contents.trim()}\n"""\n\nDoes the report mention a problem with the ambulance service, such as a delay, mistake, or capacity issue? Please answer simply "YES" or "NO", in all caps, without punctuation.`;
     console.error(`Filename: ${name}`);
     console.error("Prompt:");
     console.error(prompt);
     const completionRequest: ChatCompletionCreateParamsNonStreaming = {
-        model: "gpt-3.5-turbo",
+        model: "gpt-4-turbo",
         messages: [systemPrompt, { role: "user", content: prompt }]
     };
 
