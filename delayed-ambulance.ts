@@ -162,7 +162,7 @@ for (const file of files) {
     console.error("Prompt:");
     console.error(prompt);
     const completionRequest: ChatCompletionCreateParamsNonStreaming = {
-        model: "gpt-4-turbo",
+        model: "gpt-3.5-turbo",
         messages: [systemPrompt, { role: "user", content: prompt }]
     };
 
