@@ -1,4 +1,6 @@
-import { ChatCompletionRequestMessage, Configuration, CreateChatCompletionRequest, OpenAIApi } from "npm:openai";
+import OpenAI from "npm:openai@4.44";
+import { ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from "npm:openai@4.44/resources/chat/completions";
+
 
 // This is a deno script!
 
@@ -58,46 +60,68 @@ function dedent(
 
 
 function openAIRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
-    return fn().catch((error) => {
-        if (retries > 0) {
-            // Exponential backoff
-            const delay = 2 ** (3 - retries) * 1000;
-            console.error(`Retrying OpenAI request in ${delay}ms, ${retries} retries left`);
-            return new Promise((resolve) => setTimeout(resolve, delay)).then(() =>
-                openAIRetry(fn, retries - 1)
-            );
-        } else {
-            throw error;
-        }
-    });
-}
-
-async function openAIRequest(params: CreateChatCompletionRequest) {
-    const resp = await openai.createChatCompletion(params);
-    if (resp.status !== 200) {
-        console.error(`Got ${resp.status} (${resp.statusText}) response from OpenAI API`);
-        if (resp.data) {
-            console.error(resp.data);
-        }
-        throw new Error(`Got ${resp.status} (${resp.statusText}) response from OpenAI API`);
+  return fn().catch((error) => {
+    if (error instanceof OpenAI.APIError) {
+      console.error(`ERROR calling OpenAI: ${error.status} ${error.name} ${error.message}`);
     }
-    if (!resp.data) {
-        throw new Error('No data in OpenAI response');
+    if (retries > 0) {
+        // Exponential backoff
+        const delay = 2 ** (3 - retries) * 1000;
+        console.error(`Retrying OpenAI request in ${delay}ms, ${retries} retries left`);
+        return new Promise((resolve) => setTimeout(resolve, delay)).then(() =>
+            openAIRetry(fn, retries - 1)
+        );
+    } else {
+        throw error;
     }
-    return resp.data;
+  });
 }
+ 
+// Delay due to not space at hospital
+// Delay, other (official protocol)
+// Delay, category
+// Call handling
+// Delay, category, (private ambulance no equipped)
+// Not space in hospital
+// Intra hospital handover slow
+// Delay, Category
+// Lack of resources
+// Communication
+// Call handling, category
+// Wrong procedure/medication
+// Communication, category
+// Lack of training/knowledge
+// Other (official protocol)
+// Category
+// Lack of training/knowledge, Wrong procedure/medication
+// Other (Third party call)
+// Delay, communication, category
+// Other (official protocol), communication
+// Category, shortages staff
+// Delay due to not space at hospital, wrong procedure
+// Delay, wrong procedure/medication
+// Delay, Communication
+// Other (dispute with parents)
+// Category, Lack of training/knowledge
+// Communication, lack of training/knowledge
 
-
+type File = { year: string, name: string, originalNameRoot: string, originalPdfName: string, contents: string };
 // read in every .txt file in subdirectories of data/
-async function getFiles(): Promise<{ year: string, fileName: string, fileContents: string }[]> {
-    const files: { year: string, fileName: string, fileContents: string }[] = [];
+async function getFiles(): Promise<File[]> {
+    const files: File[] = [];
     for await (const year of Deno.readDir("data/PFD_docs")) {
         if (year.isDirectory) {
             for await (const fileEntry of Deno.readDir(`data/PFD_docs/${year.name}`)) {
                 // check file is .txt
-                if (fileEntry.isFile && fileEntry.name.endsWith(".txt")) {
-                    const fileContents = await Deno.readTextFile(`data/PFD_docs/${year.name}/${fileEntry.name}`);
-                    files.push({ year: year.name, fileName: fileEntry.name, fileContents});
+                if (fileEntry.isFile && fileEntry.name.startsWith("ocr-") && fileEntry.name.endsWith(".txt")) {
+                  const contents = await Deno.readTextFile(`data/PFD_docs/${year.name}/${fileEntry.name}`);
+                  files.push({
+                    year: year.name,
+                    name: fileEntry.name,
+                    originalPdfName: fileEntry.name.replace(/^ocr-/, "").replace(/\.pdf$/, ""),
+                    originalNameRoot: fileEntry.name.replace(/^ocr-/, "").replace(/\.txt$/, ""),
+                    contents
+                  });
                 }
             }
         }
@@ -115,40 +139,39 @@ if (OPENAI_API_KEY === undefined) {
   Deno.exit(1);
 }
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
 });
 
-const openai = new OpenAIApi(configuration);
-
 const files = await getFiles();
-for (const { year, fileName, fileContents } of files) {
-    if (fileContents.trim() === "") {
-        console.error(`EMPTY FILE ${fileName}`);
+for (const file of files) {
+    if (file.contents.trim() === "") {
+        console.error(`EMPTY FILE ${file.name}`);
         continue;
     }
-    const systemPrompt: ChatCompletionRequestMessage = {
+    const systemPrompt: ChatCompletionMessageParam = {
         role: "system",
-        content: dedent`You are a helpful assistant for investigative journalism.
+        content: dedent`You are a document classifier for use in investigative journalism.
         The journalist will provide you with a coroner's report, delimited with triple quotes (""").
-        You will answer a question about the contents of the report.
+        You will answer a yes/no question about the contents of the report.
+        You must only answer YES or NO.
     `
     };
-    const prompt = `This is a coronor's report about a person who died in ${year}:\n\n"""\n${fileContents.trim()}\n"""\n\nDid this person die as a result of a delayed ambulance? Please answer simply "YES" or "NO", in all caps, without punctuation.`;
-    console.error(`Filename: ${fileName}`);
+    const prompt = `This is a coronor's report about a person who died in ${file.year}:\n\n"""\n${file.contents.trim()}\n"""\n\nDoes the report mention a problem with the ambulance service, such as a delay, mistake, or capacity issue? Please answer simply "YES" or "NO", in all caps, without punctuation.`;
+    console.error(`Filename: ${name}`);
     console.error("Prompt:");
     console.error(prompt);
-    const completionRequest: CreateChatCompletionRequest = {
-        model: "gpt-3.5-turbo-16k",
+    const completionRequest: ChatCompletionCreateParamsNonStreaming = {
+        model: "gpt-3.5-turbo",
         messages: [systemPrompt, { role: "user", content: prompt }]
     };
 
-    let data;
+    let data: OpenAI.Chat.Completions.ChatCompletion;
     try {
-        data = await openAIRetry(() => openAIRequest(completionRequest));
+        data = await openAIRetry(() => openai.chat.completions.create(completionRequest));
     } catch (error) {
-        console.error(`Failed on file ${fileName}: `, error);
-        continue;
+      console.error(`Failed on file ${name}: `, error);
+      continue;
     }
     
     const yesNo = data?.choices[0]?.message?.content;
@@ -157,7 +180,7 @@ for (const { year, fileName, fileContents } of files) {
     const usage = data?.usage;
     console.error(`Tokens used: ${JSON.stringify(usage)}`);
 
-    console.log(JSON.stringify({ year, fileName: fileName.replace(".txt", ".pdf"), yesNo }));
+    console.log(JSON.stringify({ ...file, yesNo }));
     console.error("=====================================");
 };
 
