@@ -3,7 +3,7 @@ Uses OpenAI's GPT-3.5 to classify Coroner's Reports according to whether they me
 
 This task was done manually and laboriously for [this story](https://www.theguardian.com/society/2023/mar/09/more-than-500-deaths-in-england-last-year-after-long-ambulance-wait).
 
-This is a retrospective application of an LLM to the problem, to see how well it lines up with the journalists' judgements.
+This is a retrospective experimental application of an LLM to the problem, to see how well it lines up with the journalists' judgements.
 
 ## Usage
 First, get the PFD_docs from [Google Drive](https://drive.google.com/drive/folders/1R4cfQQ53UnWkDF3mMXlBI7XdnPgzDk49) and put them into `data/PFD_docs/`.
